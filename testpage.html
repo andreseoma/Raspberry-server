@@ -1,0 +1,75 @@
+<!DOCtYPE html>
+<html>
+<head>
+<title>Server info</title>
+<style>
+#outer{
+	text-align:center;
+}
+#outer2{
+	text-align:left;
+	display:inline-block;
+	padding-top:5%;
+}
+table, th, td {
+	border: 1px solid black;
+	border-collapse: collapse;
+	padding-right: 15px;
+	padding-top: 5px;
+	padding-bottom: 5px;
+	padding-left: 5px;
+}
+
+</style>
+</head>
+
+<body>
+<script>
+var source = new EventSource("/events");
+    source.onmessage = function(message){
+		console.log("event message");
+		console.log(message.data);
+		var tableEntries = document.getElementById("tableEntries");
+		table1.innerHTML = message.data;
+    };
+
+function ledClick(id, led) {
+	var status = document.getElementById("status");
+	status.innerHTML = "clicked " + id;
+	var img = document.getElementById("led" + id + "," + led);
+	img.src = "static/green-led-on-md.png";
+}
+function ledClick2(id, led){
+	var http = new XMLHttpRequest();
+	http.open("POST", "/", true);
+
+	http.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+
+	http.onload = function() {//Call a function when we get a response
+		console.log(http.responseText);
+	}
+	http.send("LED&id="+id+"&led="+led);
+	
+	var img = document.getElementById("led" + id + "," + led)
+	console.log(img.src);
+	if(/.*?static\/green-led-on-md.png/.test(img.src)){
+		console.log("Turning led off.");
+		img.src = "static/green-led-off-md.png"
+	}else{
+		console.log("Turning led on.");
+		img.src = "static/green-led-on-md.png"
+	}
+}
+</script>
+
+<div id = "outer">
+<div id = "outer2">
+<table id="table1">
+{tableEntries}
+</table>
+</div>
+</div>
+
+</body>
+
+</html>
