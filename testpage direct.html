@@ -56,12 +56,21 @@ function ledClick2(id, led){
 	}
 	http.send("id="+id+"&led="+led);
 }
-function commandAnalyze(id){
+function sendCommand(id){
 	var textArea = document.getElementById("text"+id);
 	var response = document.getElementById("response"+id);
 	var key = window.event.keyCode;
 	console.log(key);
 	if(key == 13){
+		var http = new XMLHttpRequest();
+		http.open("POST", "/", true);
+
+		http.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+
+		http.onload = function() {//Call a function when the state changes.
+				;
+		}
+		http.send("id="+id+"&led="+led);
 		response.innerHTML = "Sending...";
 		return false;
 	} else{

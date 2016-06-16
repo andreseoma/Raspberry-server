@@ -16,12 +16,16 @@ tableHeader = """<tr>
 	<th>ID</th>
 	<th style="padding-right: 35px;">Status</th>
 	<th>LEDS</th>
+	<th>Send a command</th>
 </tr>"""
 ledStart = """<tr id="row{ID}">
 	<td>{ID}</td>
 	<td>{name}</td>
-	<td style="text-align:center; padding-right: 5px;">
+	<td style="text-align:left; padding-right: 5px;">
 	{ledentries}</td>
+	<td style="padding-right:5px;">
+	<textarea id="text{ID}"  onkeydown="return sendCommand({ID})"></textarea></td>
+	<td id="response{ID}">Press enter to send</td>
 </tr>"""
 ledEntry = """<img id="led{ID},{led}" onclick="ledClick2({ID},{led})" src="static/green-led-{status}-md.png" width="40" height="40">"""
 
@@ -50,16 +54,17 @@ class MainHandler(tornado.web.RequestHandler):
         file.close()
         return contents.replace("{tableEntries}", MainHandler.tableData())
         
-    def get(self):
+    def get(self, parameter):
         self.write(self.mainPage())
         print("Main get finish\n")
 
-    def post(self):
+    @tornado.web.asynchronous
+    def post(self, parameter):
         data = self.request.body.decode("utf-8")
         print("Got:"+data)
         print("As a list:"+str(self.request.arguments))
-        if data.startswith("LED"):
-            print("here")
+        print("Parameter:", parameter)
+        if parameter == "leds":
             id = int(self.request.arguments["id"][0])
             led = int(self.request.arguments["led"][0])
             device = Client.clientDict[id]
@@ -70,9 +75,20 @@ class MainHandler(tornado.web.RequestHandler):
                 device.data["leds"] = leds
                 Client.clientDict[id].sendcmd("param;leds="+leds)
                 print("New leds:", leds)
-            #send updated info to all the connections
                 self.write("OK")
             self.application.website.condition.notify_all() #notify everyone to update their page
+            self.finish()
+        elif parameter == "send":
+            id = int(self.request.arguments["id"][0])
+            cmd = self.request.arguments["cmd"][0]
+            print("Got a command:", cmd)
+            client = Client.clientDict[id]
+            with client.dataLock:
+                client.waitingForAResponse = True
+                client.responseDestination = self
+            client.sendcmd("FromServer="+cmd.decode("utf-8"))
+        else:
+            self.finish()
 
 class images(tornado.web.RequestHandler):
     def get(self, filename):
@@ -109,7 +125,7 @@ class website:
     def __init__(self):
         self.condition = tornado.locks.Condition()
         self.app = tornado.web.Application([
-            (r"/", MainHandler),
+            (r"/(send|leds)?$", MainHandler),
             (r"/events", EventSource),
         ], static_path="static")
         self.app.listen(80)
@@ -190,6 +206,8 @@ class Client:
         self.data = {}
         self.msgLock = threading.Lock()
         self.dataLock = threading.Lock()
+        self.waitingForAResponse = False
+        self.response = ""
         
         print("Connection from:", address)
         self.thread = threading.Thread(target = self.startCommunication).start()
@@ -233,6 +251,13 @@ class Client:
                 site.update()
                 return
             self.conn.settimeout(4)
+            if self.waitingForAResponse:
+                with self.dataLock:
+                    self.response = command
+                    self.waitingForAResponse = False
+                    self.responseDestination.write(command)
+                    self.responseDestination.finish()
+                continue
             if command == "":
                 continue
             elif command.startswith("GetID?"):

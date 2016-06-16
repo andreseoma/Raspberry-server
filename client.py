@@ -47,5 +47,7 @@ class Client:
     def msgloop(self):
         while True:
             command = self.recvcmd()
+            if command.startswith("FromServer="):
+                self.sendcmd("OK")
         
 Client()

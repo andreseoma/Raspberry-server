@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#define RECEIVEBUFFERCOUNT (6)
+#define RECEIVEBUFFERCOUNT (5)
 #define RECEIVEBUFFERSIZE (64)
 #define RECEIVEBUFFERCOUNTCOMMAND (5)
 #define RECEIVEBUFFERSIZECOMMAND (64)
@@ -240,6 +240,9 @@ ISR(TIMER1_COMPA_vect){
 	PINB |= 1<<2;
 }
 
+void handleCommand(char* command){
+}
+
 int main(void)
 {
 	//clear the watchdog timer
@@ -295,13 +298,24 @@ int main(void)
 	waitForACommand(tempCommandBuffer);
 	sendCommand("name=Atmega;leds=00000000\n");
 	waitForACommand(tempCommandBuffer);
-	ID=atoi(tempCommandBuffer+3);
+	ID=atoi(tempCommandBuffer+strlen("ID="));
 	sendCommand("OK\n");
 	
 	while(1){
 		waitForACommand(tempCommandBuffer);
 		if(startsWith(tempCommandBuffer, "param;leds=")){
 			setLeds(tempCommandBuffer + strlen("param;leds="));
+		}
+		else if(startsWith(tempCommandBuffer, "FromServer=")){
+			char* message = tempCommandBuffer + strlen("FromServer=");
+			if(strcmp(message, "OFF\n") == 0){
+				setLeds("00000000");
+				sendCommand("OK\n");
+				sendCommand("param;leds=00000000\n");
+			}
+			else{
+				sendCommand("Unknown Command\n");
+			}
 		}
 	}
 }

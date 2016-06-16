@@ -25,12 +25,28 @@ table, th, td {
 
 <body>
 <script>
+var textAndResponseData = [];
 var source = new EventSource("/events");
     source.onmessage = function(message){
 		console.log("event message");
 		console.log(message.data);
+		console.log(textAndResponseData);
+		console.log(textAndResponseData.length);
 		var tableEntries = document.getElementById("tableEntries");
 		table1.innerHTML = message.data;
+		for (var i = 0; i < textAndResponseData.length; i++){
+			if (textAndResponseData[i] instanceof Array){
+				console.log("Here: "+i);
+				console.log(textAndResponseData[i]);
+				var textArea = document.getElementById("text"+i);
+				var response = document.getElementById("response"+i);
+				if(textArea != null && response != null){
+					console.log("Here: "+i);
+					textArea.value = textAndResponseData[i][0];
+					response.innerHTML = textAndResponseData[i][1];
+				}
+			}
+		}
     };
 
 function ledClick(id, led) {
@@ -41,14 +57,14 @@ function ledClick(id, led) {
 }
 function ledClick2(id, led){
 	var http = new XMLHttpRequest();
-	http.open("POST", "/", true);
+	http.open("POST", "/leds", true);
 
 	http.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
 
 	http.onload = function() {//Call a function when we get a response
 		console.log(http.responseText);
 	}
-	http.send("LED&id="+id+"&led="+led);
+	http.send("id="+id+"&led="+led);
 	
 	var img = document.getElementById("led" + id + "," + led)
 	console.log(img.src);
@@ -58,6 +74,32 @@ function ledClick2(id, led){
 	}else{
 		console.log("Turning led on.");
 		img.src = "static/green-led-on-md.png"
+	}
+}
+function sendCommand(id){
+	var textArea = document.getElementById("text"+id);
+	var response = document.getElementById("response"+id);
+	var key = window.event.keyCode;
+	console.log(key);
+	if(key == 13){
+		var http = new XMLHttpRequest();
+		http.open("POST", "/send", true);
+		http.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+
+		http.onload = function() {//Call a function when the state changes.
+			response.innerHTML = http.responseText;
+			textAndResponseData[id] = [textArea.value, response.innerHTML];
+		}
+		http.send("id="+id+"&cmd="+textArea.value);
+		response.innerHTML = "Sending...";
+		textAndResponseData[id] = [textArea.value, response.innerHTML];
+		console.log(textAndResponseData[id]);
+		return false;
+	} else{
+		response.innerHTML = "Press enter to send";
+		textAndResponseData[id] = [textArea.value + window.event.key, response.innerHTML];
+		console.log(textAndResponseData[id]);
+		return true;
 	}
 }
 </script>
