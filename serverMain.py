@@ -68,7 +68,7 @@ class MainHandler(tornado.web.RequestHandler):
                 lednew = "1" if leds[led-1]=="0" else "0"
                 leds = leds[:led-1]+lednew+leds[led:]
                 device.data["leds"] = leds
-                #Client.clientDict[id].sendcmd("param;leds="+leds)
+                Client.clientDict[id].sendcmd("param;leds="+leds)
                 print("New leds:", leds)
             #send updated info to all the connections
                 self.write("OK")
@@ -149,12 +149,12 @@ class Client:
             print("Sending:", string)
             self.conn.sendall(string.encode("utf-8"))
     def recv(self, bytes):
-        with self.msgLock:
+        #with self.msgLock:
             string = self.conn.recv(bytes).decode("utf-8")
             print("Received:", string)
             return string
     def recvcmd(self):
-        with self.msgLock:
+        #with self.msgLock:
             string = ""
             while True:
                 character = self.conn.recv(1).decode("utf-8")
@@ -165,7 +165,7 @@ class Client:
             return string
 
     def checkAndRecvCmd(self):
-        with self.msgLock:
+        #with self.msgLock:
             self.conn.settimeout(0)
             try:
                 character = self.conn.recv(1).decode("utf-8")
