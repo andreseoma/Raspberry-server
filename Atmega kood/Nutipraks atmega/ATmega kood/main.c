@@ -62,10 +62,12 @@ void ledOff(uint8_t led){
 }
 
 void handleError(){
+	//turn on the last led
 	ledOn(9);
 }
 
 uint8_t wasError(){
+	//return if the last led is on
 	return PORTD&(1<<7);
 }
 
@@ -74,6 +76,7 @@ void clearError(){
 }
 
 void restartOnError(){
+	//restart the microcontroller in 4 seconds if there was an error
 	if(wasError()){
 		WDTCSR |= (1<<WDCE) | (1<<WDE);
 		WDTCSR = (1<<WDE) | (1<<WDP3);
@@ -83,6 +86,9 @@ void restartOnError(){
 ISR(USART_RX_vect){
 	//PINC |= 1<<1;
 	//receive data to a circular buffer, beginning points to the first string, end to the next string after the last one, size is how many slots are used
+	//each segment, that ends with a newline, is put into the next slot, if the data is sent from another computer (it starts with "+IPD,"), it
+	//is put into the receivedCommandsFromTheInternet buffer, from the lines the new line symbol is removed, for the commands from the internet
+	//they are put there as is
 	char c = UDR0;
 	if(commandCharsLeftToRead){
 		if(currentlyReceivingStringOffset < RECEIVEBUFFERSIZECOMMAND-1){
@@ -130,6 +136,9 @@ ISR(USART_RX_vect){
 }
 
 uint8_t getLine(char* destination){
+	//this waits for a line (not including data sent by another device), and copies it into the destination
+	//copying is necessary, because we might receive new commands and they might overwrite the location of the line in the circular buffer,
+	//updates the circular buffer beginning, because one command has been processed
 	while(size == 0);
 	cli();
 	for(uint8_t n = 0; n < RECEIVEBUFFERSIZE; ++n){
@@ -147,6 +156,7 @@ uint8_t getLine(char* destination){
 }
 
 uint8_t startsWith(char* string1, char* string2){
+	//1 if string1 starts with string2, 0 otherwise
 	while(1){
 		if(*string2 == 0){
 			return 1;
@@ -160,6 +170,7 @@ uint8_t startsWith(char* string1, char* string2){
 }
 
 void sendString(char* string){
+	//sends the given string as is to the wireless module
 	while(1){
 		if(*string == 0){
 			break;
@@ -171,6 +182,7 @@ void sendString(char* string){
 }
 
 void waitForACommand(char* destination){
+	//this waits for a command received from another device and copies it to the destination, updates the circular buffer beginning, because one command has been processed
 	while(sizeCommands == 0);
 	cli();
 	for(uint8_t i = 0; i < RECEIVEBUFFERSIZECOMMAND; ++i){
@@ -185,6 +197,8 @@ void waitForACommand(char* destination){
 }
 
 uint8_t waitForOneOfTheLines(uint8_t count, ...){
+	//can be given any number of arguments, returns if one of them is received and the return value is which command (starting with 0) was received
+	//count is how many commands it 
 	char tempBuffer[RECEIVEBUFFERSIZE];
 	va_list args;
 	while(1){
@@ -207,10 +221,8 @@ void waitForOKorError(){
 }
 
 void sendCommand(char* data){
-	cli();
-	beginning = end;
-	size = 0;
-	sei();
+	//this sends a command to the other device to which the wifi module is currently connected to
+	//it handles all the communication with the wifi module to send the data
 	uint8_t length = 0;
 	while(data[length] != 0){
 		++length;
@@ -226,6 +238,7 @@ void sendCommand(char* data){
 }
 
 void setLeds(char* ledString){
+	//sets the leds to the values, given in the string, beginning with the first led, for example "0101"
 	for(uint8_t n = 0; n < strlen(ledString); ++n){
 		if(ledString[n] == '0'){
 			ledOff(n);
@@ -237,10 +250,8 @@ void setLeds(char* ledString){
 }
 
 ISR(TIMER1_COMPA_vect){
+	//flash a led to indicate power on
 	PINB |= 1<<2;
-}
-
-void handleCommand(char* command){
 }
 
 int main(void)
@@ -250,20 +261,24 @@ int main(void)
 	WDTCSR |= (1<<WDCE) | (1<<WDE);
 	WDTCSR = 0;
 	
+	//timer for the power on led flash
 	OCR1A = F_CPU/(1024*2);
 	TCCR1B = (1<<WGM12)|(0b101<<CS10);
 	TIMSK1 = 1<<OCIE1A;
 	
+	//enable the leds
 	clock_prescale_set(clock_div_1);
 	DDRC = 0x3f;
 	DDRB = 7;
 	DDRD = 1<<7;
 	
+	//enable the UART
 	UCSR0B = (1<<RXEN0)|(1<<TXEN0)|(1<<RXCIE0);
 	UCSR0C = (0b11<<UCSZ00);
 	UBRR0 = 12;
 	sei();
 	
+	//initialize the wifi module, at each step turn on the next led to indicate progress, if there was an error, wait for 4 seconds and restart
 	sendString("AT\r\n");
 	waitForOKorError();
 	ledOn(0);
@@ -274,6 +289,7 @@ int main(void)
 	ledOn(1);
 	restartOnError();
 	
+	//this only connects to the wifi network if not connected already
 	sendString("AT+CWJAP?\r\n");
 	if(waitForOneOfTheLines(2, "No AP", "OK") == 0){
 		waitForOKorError();
@@ -283,11 +299,13 @@ int main(void)
 	ledOn(2);
 	restartOnError();
 	
+	//close the current connection to indicate reset of the microcontroller
 	sendString("AT+CIPCLOSE\r\n");
 	waitForOKorError();
 	ledOn(3);
 	clearError();
 	
+	//connect to the Raspberry server
 	sendString("AT+CIPSTART=\"TCP\",\"172.19.28.50\",8890\r\n");
 	waitForOKorError();
 	ledOn(4);
@@ -295,6 +313,7 @@ int main(void)
 	
 	setLeds("00000000");
 	
+	//this sends the data that the server wants, also receives an ID
 	waitForACommand(tempCommandBuffer);
 	sendCommand("name=Atmega;leds=00000000\n");
 	waitForACommand(tempCommandBuffer);
@@ -302,6 +321,7 @@ int main(void)
 	sendCommand("OK\n");
 	
 	while(1){
+		//wait for commands and react
 		waitForACommand(tempCommandBuffer);
 		if(startsWith(tempCommandBuffer, "param;leds=")){
 			setLeds(tempCommandBuffer + strlen("param;leds="));
@@ -312,6 +332,7 @@ int main(void)
 				setLeds("00000000");
 				sendCommand("OK\n");
 				sendCommand("param;leds=00000000\n");
+				waitForACommand(tempCommandBuffer);
 			}
 			else{
 				sendCommand("Unknown Command\n");
