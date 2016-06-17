@@ -91,8 +91,6 @@ function sendCommand(id){
 			textAndResponseData[id] = [textArea.value, response.innerHTML];
 		}
 		http.send("id="+id+"&cmd="+textArea.value);
-		response.innerHTML = "Sending...";
-		textAndResponseData[id] = [textArea.value, response.innerHTML];
 		console.log(textAndResponseData[id]);
 		return false;
 	} else{

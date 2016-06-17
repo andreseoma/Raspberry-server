@@ -25,3 +25,6 @@ mysite/mysite/__pycache__/wsgi.cpython-34.pyc
 mysite/mysite/settings.py
 mysite/mysite/urls.py
 mysite/mysite/wsgi.py
+test1.py
+test2.py
+serverMain.py
